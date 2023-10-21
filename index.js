@@ -1,11 +1,3 @@
-// const httpServer = require('http-server');
-// const PORT=8081; 
-
-
-// (()=>{
-//     const server = httpServer.createServer({root:'./'});
-//     server.listen(PORT);
-// })()
 const {main} = require('./src/getSingleEventForm');
 const express = require('express');
 const app = express();
