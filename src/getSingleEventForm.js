@@ -7,18 +7,19 @@ const saveAs = require('file-saver');
 const FENCING_URL = "https://www.fencingtimelive.com/";
 const TEST_EVENT_NAME = 'Portland RYC';
 const TOURNAMENTS_URL = 'https://fencingtimelive.com';
-async function main (eventyName){
-  const createTagNameEngine = () => ({
-    // Returns the first element matching given selector in the root's subtree.
-    query(root, selector) {
-      return root.querySelector(selector);
-    },
+const createTagNameEngine = () => ({
+  // Returns the first element matching given selector in the root's subtree.
+  query(root, selector) {
+    return root.querySelector(selector);
+  },
 
-    // Returns all elements matching given selector in the root's subtree.
-    queryAll(root, selector) {
-      return Array.from(root.querySelectorAll(selector));
-    }
-  });
+  // Returns all elements matching given selector in the root's subtree.
+  queryAll(root, selector) {
+    return Array.from(root.querySelectorAll(selector));
+  }
+});
+async function main (eventyName){
+
 
   await selectors.register('tag', createTagNameEngine);
   const browser = await playwright.chromium.launch({
@@ -38,11 +39,13 @@ async function main (eventyName){
   searchBar.type(eventyName);
   await page.click("#searchBut")
   await page.waitForTimeout(1000);
-  const noFound = page.getByText('No tournaments found');
-  console.log('noFound', noFound)
+
+  const noFound = await page.isVisible(".no-records-found");
   if (noFound) {
+    browser.close();
     throw Error("No tournaments found");
   }
+  await page.waitForTimeout(2000);
   // click the first search result
   page.click("tag=table >> tbody >> tr >> td");
   

@@ -14,8 +14,7 @@ app.post('/download', async (req, res) => {
     try{
       await main(eventName);
     } catch (err) {
-      console.log(err);
-      res.status(500).send('Dowanload Failed');
+      res.status(500).send('Dowanload Failed' + err);
     }
 
     
