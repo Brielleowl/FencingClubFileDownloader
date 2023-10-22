@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
+  "bin": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -14,6 +15,7 @@
     "file-saver": "^2.0.5",
     "http-server": "^14.1.1",
     "https": "^1.0.0",
+    "open": "^6.4.0",
     "path": "^0.12.7",
     "playwright": "^1.39.0"
   }

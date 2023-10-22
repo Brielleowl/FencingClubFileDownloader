@@ -1,0 +1,12 @@
+{
+    "name": "fencing_club",
+    "version": "1.0.0",
+    "scripts": "./index.js",
+    "bin": "./index.js",
+    "targets": [
+      "node20-macos-x64"
+    ]
+  }
+
+  
+  

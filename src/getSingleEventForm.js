@@ -5,23 +5,8 @@ const https = require('https');
 const saveAs = require('file-saver');
 
 const FENCING_URL = "https://www.fencingtimelive.com/";
-const TEST_EVENT_NAME = 'Portland RYC';
 const TOURNAMENTS_URL = 'https://fencingtimelive.com';
-const createTagNameEngine = () => ({
-  // Returns the first element matching given selector in the root's subtree.
-  query(root, selector) {
-    return root.querySelector(selector);
-  },
-
-  // Returns all elements matching given selector in the root's subtree.
-  queryAll(root, selector) {
-    return Array.from(root.querySelectorAll(selector));
-  }
-});
 async function main (eventyName){
-
-
-  await selectors.register('tag', createTagNameEngine);
   const browser = await playwright.chromium.launch({
     headless: false, // setting this to true will not run the UI
   });
@@ -47,7 +32,9 @@ async function main (eventyName){
   }
   await page.waitForTimeout(2000);
   // click the first search result
-  page.click("tag=table >> tbody >> tr >> td");
+  // page.click("tag=table >> tbody >> tr >> td");
+  const firstRow = await page.$('table.tournTable tbody tr');
+  firstRow.click();
   
   //go through all event schedule item 
   await page.waitForTimeout(1000);
