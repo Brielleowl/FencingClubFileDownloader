@@ -54,11 +54,32 @@ async function main (eventyName){
     ]);
 
     const suggestedFilename = await newPage.title();
-    const filePath = './' + suggestedFilename + '.csv';
-    await download.saveAs(filePath);
+    // const filePath = './' + suggestedFilename + '.csv';
+  
+    // await download.saveAs(filePath);
+    console.log(download.url())
+    const fileUrl = download.url();
+    const outputPath = './' + suggestedFilename + '.csv';
+    https.get(fileUrl, (response) => {
+      if (response.statusCode === 200) {
+        const fileStream = fs.createWriteStream(outputPath);
+    
+        response.pipe(fileStream);
+    
+        fileStream.on('finish', () => {
+          fileStream.close();
+          console.log('The file has been downloaded。');
+        });
+      } else {
+        console.error('download file failed：', response.statusCode, response.statusMessage);
+      }
+    }).on('error', (error) => {
+      console.error('ERROR：', error.message);
+    });
 
+    
+    await page.waitForTimeout(2000);
     newPage.close();
-
   }
 
   await page.waitForTimeout(5000);
