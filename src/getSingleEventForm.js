@@ -6,17 +6,19 @@ const saveAs = require('file-saver');
 
 const FENCING_URL = "https://www.fencingtimelive.com/";
 const TOURNAMENTS_URL = 'https://fencingtimelive.com';
-async function main (eventyName){
+async function main (eventyName, eventType){
+  console.log('eventType', eventType)
   const browser = await playwright.chromium.launch({
     headless: false, // setting this to true will not run the UI
   });
+  
   const context = await browser.newContext();
   const page = await context.newPage();
   await page.goto(FENCING_URL);
 
   await page.click("text=USA")
   await page.waitForTimeout(1000);
-  await page.click("text=Regional")
+  await page.click(`text=${eventType}`)
   await page.waitForTimeout(1000);
   await page.click("text=Last 10 days")
 
@@ -54,9 +56,7 @@ async function main (eventyName){
     ]);
 
     const suggestedFilename = await newPage.title();
-    // const filePath = './' + suggestedFilename + '.csv';
-  
-    // await download.saveAs(filePath);
+
     console.log(download.url())
     const fileUrl = download.url();
     const outputPath = './' + suggestedFilename + '.csv';

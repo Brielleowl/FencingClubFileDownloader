@@ -1,43 +1,74 @@
 <!DOCTYPE html>
 <html>
+
 <body>
 
 
-<title>This is Download CSV tool for fencingtimelive.com</title>
-<p>Please enter the Tournaments Name below</p>
-<input type="text" id="tournamentsNameInput">
-    
-</input>
-<button type="button" id="downloadButton">
-    Download
-</button>
-<script>
-    document.getElementById('downloadButton').addEventListener('click', function () {
+    <title>This is Download CSV tool for fencingtimelive.com</title>
+    <p>Please select the Tournaments category below</p>
+
+    <button type="button" id="national" class="category-button" onclick="selectButton('national')">
+        National
+    </button>
+
+    <button type="button" id="regional" class="category-button" onclick="selectButton('regional')">
+        Regional
+    </button>
+
+    <button type="button" id="local" class="category-button" onclick="selectButton('local')">
+        Local
+    </button>
+
+    <p>Please enter the Tournaments Name below</p>
+    <input type="text" id="tournamentsNameInput">
+
+    </input>
+
+    <button type="button" id="downloadButton">
+        Download
+    </button>
+    <script>
+        let buttonId = null;
+        function selectButton(selectedButtonId) {
+            const selectButtons = document.querySelectorAll('.category-button');
+
+            selectButtons.forEach(button => {
+                button.style.backgroundColor = '';
+            });
+
+            document.getElementById(selectedButtonId).style.backgroundColor = 'lightblue';
+            buttonId = selectedButtonId;
+        }
+
+        document.getElementById('downloadButton').addEventListener('click', function () {
             const tournamentsName = document.getElementById('tournamentsNameInput').value;
+            const tournamentsType = buttonId;
+            console.log('tournamentsType', tournamentsType)
             console.log('tournamentsName', tournamentsName)
             fetch('/download', {
                 method: 'POST',
-                body: JSON.stringify({ tournamentsName }),
+                body: JSON.stringify({ tournamentsName, tournamentsType}),
                 headers: {
                     'Accept': 'application/json, text/plain, */*',
                     'Content-Type': 'application/json'
                 }
             })
-            .then(response => {
-                console.log(response)
-                if (!response.ok) {
-                    return response.text().then(msg => {
-                    throw new Error(msg);
-                    });
-                } else {
-                    
-                }
-            })
-            .catch(error => {
-                alert('Download failed：' + error.message);
-            });
+                .then(response => {
+                    console.log(response)
+                    if (!response.ok) {
+                        return response.text().then(msg => {
+                            throw new Error(msg);
+                        });
+                    } else {
+
+                    }
+                })
+                .catch(error => {
+                    alert('Download failed：' + error.message);
+                });
         });
-    
-</script>
+
+    </script>
 </body>
+
 </html>

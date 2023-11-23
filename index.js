@@ -12,11 +12,12 @@ const open = require('open');
 app.post('/download', async (req, res) => {
   console.log('receiving data ...');
   const eventName = req.body.tournamentsName;
+  const eventType = req.body.tournamentsType;
   console.log(req.body)
   if (eventName != null) {
     console.log('eventName', eventName)
     try{
-      await main(eventName);
+      await main(eventName, eventType);
     } catch (err) {
       res.status(500).send('Dowanload Failed' + err);
     }  
