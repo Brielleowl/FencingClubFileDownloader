@@ -19,6 +19,9 @@
         Local
     </button>
 
+    <p> The selected category: </p>
+    <p id="category-selected" style="color: blue;"> local </p>
+
     <p>Please enter the Tournaments Name below</p>
     <input type="text" id="tournamentsNameInput">
 
@@ -35,7 +38,8 @@
             selectButtons.forEach(button => {
                 button.style.backgroundColor = '';
             });
-
+            const selectedText = document.getElementById('category-selected');
+            selectedText.innerText = selectedButtonId;
             document.getElementById(selectedButtonId).style.backgroundColor = 'lightblue';
             buttonId = selectedButtonId;
         }
@@ -67,6 +71,7 @@
                     alert('Download failed：' + error.message);
                 });
         });
+
 
     </script>
 </body>
