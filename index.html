@@ -1,8 +1,6 @@
 <!DOCTYPE html>
 <html>
-
 <body>
-
 
     <title>This is Download CSV tool for fencingtimelive.com</title>
     <p>Please select the Tournaments category below</p>
@@ -20,14 +18,12 @@
     </button>
 
     <p> The selected category: </p>
-    <p id="category-selected" style="color: blue;"> local </p>
+    <p id="category-selected" style="color: blue;"> None </p>
 
     <p>Please enter the Tournaments Name below</p>
     <input type="text" id="tournamentsNameInput">
 
-    </input>
-
-    <button type="button" id="downloadButton">
+    <button type="button" id="downloadButton" disabled>
         Download
     </button>
     <script>
@@ -42,6 +38,9 @@
             selectedText.innerText = selectedButtonId;
             document.getElementById(selectedButtonId).style.backgroundColor = 'lightblue';
             buttonId = selectedButtonId;
+
+            // Enable the download button
+            document.getElementById('downloadButton').disabled = false;
         }
 
         document.getElementById('downloadButton').addEventListener('click', function () {
@@ -64,16 +63,13 @@
                             throw new Error(msg);
                         });
                     } else {
-
+                        // Handle successful response
                     }
                 })
                 .catch(error => {
                     alert('Download failed：' + error.message);
                 });
         });
-
-
     </script>
 </body>
-
 </html>
