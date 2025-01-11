@@ -4,18 +4,39 @@ const fs = require("fs");
 const https = require("https");
 const saveAs = require("file-saver");
 const path = require("path");
+const XLSX = require("xlsx");
 
-const FENCING_URL = "https://www.fencingtimelive.com/";
 const TOURNAMENTS_URL = "https://fencingtimelive.com";
+const MONTH_MAP = {
+  January: "1",
+  February: "2",
+  March: "3",
+  April: "4",
+  May: "5",
+  June: "6",
+  July: "7",
+  August: "8",
+  September: "9",
+  October: "10",
+  November: "11",
+  December: "12",
+};
+
+function getWeaponType(eventName) {
+  if (eventName.includes("Foil")) return "Foil";
+  if (eventName.includes("Saber")) return "Saber";
+  if (eventName.includes("Épée")) return "Épée";
+  return "";
+}
+
 async function main(eventyName, eventType) {
-  console.log("eventType", eventType);
   const browser = await playwright.chromium.launch({
     headless: false, // setting this to true will not run the UI
   });
 
   const context = await browser.newContext();
   const page = await context.newPage();
-  await page.goto(FENCING_URL);
+  await page.goto(TOURNAMENTS_URL);
 
   await page.click("text=USA");
   await page.waitForTimeout(1000);
@@ -54,8 +75,55 @@ async function main(eventyName, eventType) {
   const tournNameEle = await page.$(".desktop.tournName");
   const tournName = await tournNameEle.innerText();
 
+  const eventTableHandler = await page.locator("table");
+  // get Date
+  const allEventDateAndTime = await page.locator("h5").allInnerTexts();
+  const formattedCSVPath = path.join(__dirname, "..", "formattedCSV");
+  if (!fs.existsSync(formattedCSVPath)) {
+    fs.mkdirSync(formattedCSVPath, { recursive: true });
+  }
+  const scheduleFilePath = path.join(
+    formattedCSVPath,
+    `${tournName}_schedule.csv`
+  );
+  const headers = "Start,Event,Day,Date,Start Time, End Time\n";
+  fs.writeFileSync(scheduleFilePath, headers);
+
+  // get eventName, StartTime, EndTime
+  for (let i = 0; i < (await eventTableHandler.count()); i++) {
+    // get Date and Day
+    const [day, month, dateWithComma, year] = allEventDateAndTime[i].split(" ");
+    const eventDate = dateWithComma.replace(",", "");
+    const formattedDate = `${MONTH_MAP[month]}/${eventDate}/${year}`;
+
+    const curTable = eventTableHandler.nth(i);
+    const rowHandler = curTable.locator("tbody").nth(0).locator("tr");
+    for (let i = 0; i < (await rowHandler.count()); i++) {
+      // Start Time and End Time
+
+      const row = rowHandler.nth(i).locator("td");
+      const startTime = await row.nth(0).innerText();
+      const eventName = await row.nth(1).innerText();
+      const fullEndTime = await row.nth(2).innerText();
+      if (!fullEndTime.startsWith("Finished at")) continue;
+      const endTime = fullEndTime
+        .split("Finished at ")[1] // Get everything after "Finished at "
+        .match(/\d{1,2}:\d{2}\s?[AP]M/)[0] // Extract time in format "2:00 PM"
+        .trim();
+      ("3:13 PM");
+
+      // Format: Start,Event,Day,Date,Start Time,End Time
+      const csvLine = `"${startTime}","${eventName}","${day}","${formattedDate}","${startTime}","${endTime}"\n`;
+
+      fs.appendFileSync(scheduleFilePath, csvLine, "utf8");
+    }
+  }
+
+  // create xlsx file
+  const workbook = XLSX.utils.book_new();
+
   for (let i = 0; i < eventCount; i++) {
-    const newPage = await context.newPage();
+    const eventPage = await context.newPage();
 
     const link = await eventBodyHandler
       .nth(i)
@@ -63,54 +131,95 @@ async function main(eventyName, eventType) {
       .nth(1)
       .locator("a")
       .getAttribute("href");
-    newPage.goto(`${TOURNAMENTS_URL}${link}`);
-    await page.waitForTimeout(3000);
-    const href = await newPage.locator("#butDownload").getAttribute("href");
-    const [download] = await Promise.all([
-      newPage.waitForEvent("download"),
-      newPage.locator("#butDownload").click(),
+    eventPage.goto(`${TOURNAMENTS_URL}${link}`);
+    await eventPage.waitForTimeout(2000);
+    const eventName = await eventPage.locator(".desktop.eventName").innerText();
+    const weaponType = getWeaponType(eventName);
+    const eventDate = await eventPage.locator(".desktop.eventTime").innerText();
+    const [dayText, ...dateText] = eventDate.split(", ");
+    const fullDate = dateText.join(", ");
+    const dateObj = new Date(fullDate);
+    const formattedDate = `${
+      dateObj.getMonth() + 1
+    }/${dateObj.getDate()}/${dateObj.getFullYear()}`;
+
+    const headerLocator = eventPage.locator("#resultList thead tr th");
+    const headers = await headerLocator.allInnerTexts();
+    if (headers.includes("Team Name")) continue;
+    const rowsLocator = eventPage.locator("#resultList tbody tr");
+    const rowCount = await rowsLocator.count();
+    let tableData = [];
+
+    for (let i = 0; i < rowCount; i++) {
+      const row = rowsLocator.nth(i).locator("td");
+      const rowData = await row.allInnerTexts();
+      tableData.push(rowData);
+    }
+
+    headers.push("Event Name", "Day", "Date", "Type");
+    tableData = tableData.map((row) => [
+      ...row,
+      eventName,
+      dayText,
+      formattedDate,
+      weaponType,
     ]);
 
-    const suggestedFilename = await newPage.title();
+    [headers, ...tableData].map((row) => row.join(",")).join("\n");
 
-    console.log(download.url());
-    const fileUrl = download.url();
+    // create summary tab
+    const nameIndex = headers.indexOf("Name");
+    const typeIndex = headers.length - 1; // Type 是最后一列
 
-    https
-      .get(fileUrl, (response) => {
-        if (response.statusCode === 200) {
-          // Construct the full path of the new folder
-          const newFolderPath = path.join(__dirname, "..", tournName);
-          if (!fs.existsSync(newFolderPath)) {
-            fs.mkdirSync(newFolderPath, { recursive: true });
-          }
-          const outputPath = path.join(
-            newFolderPath,
-            suggestedFilename + ".csv"
-          );
+    const summaryData = new Map(); // Map<type, Map<name, count>>
 
-          const fileStream = fs.createWriteStream(outputPath);
+    tableData.forEach((row) => {
+      const type = row[typeIndex];
+      const name = row[nameIndex];
 
-          response.pipe(fileStream);
+      if (!summaryData.has(type)) {
+        summaryData.set(type, new Map());
+      }
 
-          fileStream.on("finish", () => {
-            fileStream.close();
-            console.log("The file has been downloaded。");
-          });
-        } else {
-          console.error(
-            "download file failed：",
-            response.statusCode,
-            response.statusMessage
-          );
-        }
-      })
-      .on("error", (error) => {
-        console.error("ERROR：", error.message);
+      const typeMap = summaryData.get(type);
+      typeMap.set(name, (typeMap.get(name) || 0) + 1);
+    });
+
+    let mainSheet;
+    if (i === 0) {
+      // Create new sheet with headers and first event's data
+      mainSheet = XLSX.utils.aoa_to_sheet([headers, ...tableData]);
+      XLSX.utils.book_append_sheet(workbook, mainSheet, "Main Data");
+    } else {
+      // Get existing sheet and append new data
+      mainSheet = workbook.Sheets["Main Data"];
+      XLSX.utils.sheet_add_aoa(mainSheet, tableData, {
+        origin: -1 // This tells it to append at the end
       });
+      console.log("mainSheet", mainSheet)
+    }
 
-    await page.waitForTimeout(2000);
-    newPage.close();
+    // const summaryRows = [["Type", "Name", "Count"]];
+
+    // for (const [type, nameMap] of summaryData) {
+    //   const duplicateNames = new Set(
+    //     [...nameMap.entries()]
+    //       .filter(([_, count]) => count > 1)
+    //       .map(([name]) => name)
+    //   );
+
+    //   for (const [name, count] of nameMap) {
+    //     summaryRows.push([type, name, count]);
+    //   }
+    // }
+
+    const xlsxFilePath = path.join(
+      formattedCSVPath,
+      `${tournName}_processed_data.xlsx`
+    );
+    XLSX.writeFile(workbook, xlsxFilePath);
+
+    eventPage.close();
   }
 
   await page.waitForTimeout(5000);
