@@ -1,8 +1,6 @@
 const playwright = require("playwright");
 const { selectors } = require("@playwright/test");
 const fs = require("fs");
-const https = require("https");
-const saveAs = require("file-saver");
 const path = require("path");
 const XLSX = require("xlsx");
 
@@ -167,60 +165,109 @@ async function main(eventyName, eventType) {
 
     [headers, ...tableData].map((row) => row.join(",")).join("\n");
 
-    // create summary tab
-    const nameIndex = headers.indexOf("Name");
-    const typeIndex = headers.length - 1; // Type 是最后一列
-
-    const summaryData = new Map(); // Map<type, Map<name, count>>
-
-    tableData.forEach((row) => {
-      const type = row[typeIndex];
-      const name = row[nameIndex];
-
-      if (!summaryData.has(type)) {
-        summaryData.set(type, new Map());
-      }
-
-      const typeMap = summaryData.get(type);
-      typeMap.set(name, (typeMap.get(name) || 0) + 1);
-    });
-
     let mainSheet;
     if (i === 0) {
-      // Create new sheet with headers and first event's data
       mainSheet = XLSX.utils.aoa_to_sheet([headers, ...tableData]);
       XLSX.utils.book_append_sheet(workbook, mainSheet, "Main Data");
     } else {
-      // Get existing sheet and append new data
       mainSheet = workbook.Sheets["Main Data"];
       XLSX.utils.sheet_add_aoa(mainSheet, tableData, {
-        origin: -1 // This tells it to append at the end
+        origin: -1
       });
-      console.log("mainSheet", mainSheet)
     }
-
-    // const summaryRows = [["Type", "Name", "Count"]];
-
-    // for (const [type, nameMap] of summaryData) {
-    //   const duplicateNames = new Set(
-    //     [...nameMap.entries()]
-    //       .filter(([_, count]) => count > 1)
-    //       .map(([name]) => name)
-    //   );
-
-    //   for (const [name, count] of nameMap) {
-    //     summaryRows.push([type, name, count]);
-    //   }
-    // }
-
-    const xlsxFilePath = path.join(
-      formattedCSVPath,
-      `${tournName}_processed_data.xlsx`
-    );
-    XLSX.writeFile(workbook, xlsxFilePath);
 
     eventPage.close();
   }
+
+  // Create summary sheet after all data is collected
+  const mainSheet = workbook.Sheets["Main Data"];
+  const mainData = XLSX.utils.sheet_to_json(mainSheet);
+
+  // Create summary data structure
+  const summaryData = new Map(); // Map<type, Map<name, count>>
+  mainData.forEach((row) => {
+    const type = row.Type;
+    const name = row.Name;
+
+    if (!summaryData.has(type)) {
+      summaryData.set(type, new Map());
+    }
+
+    const typeMap = summaryData.get(type);
+    typeMap.set(name, (typeMap.get(name) || 0) + 1);
+  });
+
+  // Create summary sheet
+  const summaryHeaders = ["Type", "Name", "Count", "Coaching", "Travel Exp"];
+  const summaryRows = [summaryHeaders];
+  
+  // Convert summary data to rows
+  for (const [type, nameMap] of summaryData) {
+    for (const [name, count] of nameMap) {
+      summaryRows.push([type, name, count, "", ""]);
+    }
+  }
+
+  const summarySheet = XLSX.utils.aoa_to_sheet(summaryRows);
+  
+  // Add red background to duplicate names
+  const duplicateNames = new Set(
+    [...summaryData.values()]
+      .flatMap(nameMap => [...nameMap.entries()])
+      .filter(([_, count]) => count > 1)
+      .map(([name]) => name)
+  );
+
+  // Style cells with duplicate names and prepare merge cells
+  let currentType = null;
+  let mergeStart = 1; // Start from row 1 (after header)
+  let mergeCells = [];
+  
+  for (let i = 1; i < summaryRows.length; i++) {
+    // Handle duplicate names highlighting
+    const cellRef = XLSX.utils.encode_cell({ r: i, c: 1 }); // Column B (Name)
+    const name = summaryRows[i][1];
+    const type = summaryRows[i][0];
+    
+    if (duplicateNames.has(name)) {
+      if (!summarySheet[cellRef].s) summarySheet[cellRef].s = {};
+      summarySheet[cellRef].s.fill = {
+        fgColor: { rgb: "FFFF0000" },
+        patternType: "solid"
+      };
+    }
+
+    // Handle type merging
+    if (type !== currentType) {
+      if (currentType !== null && i - mergeStart > 1) {
+        mergeCells.push({
+          s: { r: mergeStart, c: 0 },
+          e: { r: i - 1, c: 0 }
+        });
+      }
+      currentType = type;
+      mergeStart = i;
+    }
+  }
+
+  // Don't forget to merge the last group
+  if (summaryRows.length - mergeStart > 1) {
+    mergeCells.push({
+      s: { r: mergeStart, c: 0 },
+      e: { r: summaryRows.length - 1, c: 0 }
+    });
+  }
+
+  // Apply merges to the sheet
+  summarySheet["!merges"] = mergeCells;
+
+  XLSX.utils.book_append_sheet(workbook, summarySheet, "Summary");
+  
+  const xlsxFilePath = path.join(
+    formattedCSVPath,
+    `${tournName}_processed_data.xlsx`
+  );
+  XLSX.writeFile(workbook, xlsxFilePath);
 
   await page.waitForTimeout(5000);
   await browser.close();
