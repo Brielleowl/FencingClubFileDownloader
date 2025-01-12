@@ -110,7 +110,10 @@ async function main(eventyName, eventType) {
 
     const headerLocator = eventPage.locator("#resultList thead tr th");
     const headers = await headerLocator.allInnerTexts();
-    if (headers.includes("Team Name")) continue;
+    if (headers.includes("Team Name")){
+      await eventPage.close();
+      continue;
+    }
     const rowsLocator = eventPage.locator("#resultList tbody tr");
     const rowCount = await rowsLocator.count();
     let tableData = [];
