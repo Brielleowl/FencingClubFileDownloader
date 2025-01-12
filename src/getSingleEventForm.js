@@ -5,20 +5,6 @@ const path = require("path");
 const XLSX = require("xlsx");
 
 const TOURNAMENTS_URL = "https://fencingtimelive.com";
-const MONTH_MAP = {
-  January: "1",
-  February: "2",
-  March: "3",
-  April: "4",
-  May: "5",
-  June: "6",
-  July: "7",
-  August: "8",
-  September: "9",
-  October: "10",
-  November: "11",
-  December: "12",
-};
 
 function getWeaponType(eventName) {
   if (eventName.includes("Foil")) return "Foil";
@@ -174,7 +160,6 @@ async function main(eventyName, eventType) {
   mainData.forEach((row) => {
     const type = row.Type;
     const name = row.Name;
-    console.log("row", row)
     // Track if this person is ever from Maximum Fencing Club
     if (row["Club(s)"]?.includes("Maximum Fencing Club")) {
       maximumFencingNames.add(name);
