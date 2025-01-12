@@ -87,36 +87,6 @@ async function main(eventyName, eventType) {
   const headers = "Start,Event,Day,Date,Start Time, End Time\n";
   fs.writeFileSync(scheduleFilePath, headers);
 
-  // get eventName, StartTime, EndTime
-  for (let i = 0; i < (await eventTableHandler.count()); i++) {
-    // get Date and Day
-    const [day, month, dateWithComma, year] = allEventDateAndTime[i].split(" ");
-    const eventDate = dateWithComma.replace(",", "");
-    const formattedDate = `${MONTH_MAP[month]}/${eventDate}/${year}`;
-
-    const curTable = eventTableHandler.nth(i);
-    const rowHandler = curTable.locator("tbody").nth(0).locator("tr");
-    for (let i = 0; i < (await rowHandler.count()); i++) {
-      // Start Time and End Time
-
-      const row = rowHandler.nth(i).locator("td");
-      const startTime = await row.nth(0).innerText();
-      const eventName = await row.nth(1).innerText();
-      const fullEndTime = await row.nth(2).innerText();
-      if (!fullEndTime.startsWith("Finished at")) continue;
-      const endTime = fullEndTime
-        .split("Finished at ")[1] // Get everything after "Finished at "
-        .match(/\d{1,2}:\d{2}\s?[AP]M/)[0] // Extract time in format "2:00 PM"
-        .trim();
-      ("3:13 PM");
-
-      // Format: Start,Event,Day,Date,Start Time,End Time
-      const csvLine = `"${startTime}","${eventName}","${day}","${formattedDate}","${startTime}","${endTime}"\n`;
-
-      fs.appendFileSync(scheduleFilePath, csvLine, "utf8");
-    }
-  }
-
   // create xlsx file
   const workbook = XLSX.utils.book_new();
 
@@ -129,6 +99,17 @@ async function main(eventyName, eventType) {
       .nth(1)
       .locator("a")
       .getAttribute("href");
+    // get startTime and endTime
+    const startTime = await eventBodyHandler.nth(i).locator("td").nth(0).innerText();
+    const fullEndTime = await eventBodyHandler.nth(i).locator("td").nth(2).innerText();
+    if (!fullEndTime.startsWith("Finished at")) continue;
+    const endTime = fullEndTime
+      .split("Finished at ")[1] // Get everything after "Finished at "
+      .match(/\d{1,2}:\d{2}\s?[AP]M/)[0] // Extract time in format "2:00 PM"
+      .trim();
+    ("3:13 PM");
+
+
     eventPage.goto(`${TOURNAMENTS_URL}${link}`);
     await eventPage.waitForTimeout(2000);
     const eventName = await eventPage.locator(".desktop.eventName").innerText();
@@ -154,13 +135,15 @@ async function main(eventyName, eventType) {
       tableData.push(rowData);
     }
 
-    headers.push("Event Name", "Day", "Date", "Type");
+    headers.push("Event Name", "Day", "Date", "Type", "Start Time", "End Time");
     tableData = tableData.map((row) => [
       ...row,
       eventName,
       dayText,
       formattedDate,
       weaponType,
+      startTime,
+      endTime
     ]);
 
     [headers, ...tableData].map((row) => row.join(",")).join("\n");
