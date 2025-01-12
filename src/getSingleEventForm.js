@@ -166,19 +166,41 @@ async function main(eventyName, eventType) {
   const mainSheet = workbook.Sheets["Main Data"];
   const mainData = XLSX.utils.sheet_to_json(mainSheet);
 
-  // Create summary data structure
-  const summaryData = new Map(); // Map<type, Map<name, count>>
+  // First, collect all names and their counts by type
+  const allNamesData = new Map(); // Map<type, Map<name, count>>
+  // Track which names are from Maximum Fencing Club
+  const maximumFencingNames = new Set();
+
   mainData.forEach((row) => {
     const type = row.Type;
     const name = row.Name;
-
-    if (!summaryData.has(type)) {
-      summaryData.set(type, new Map());
+    console.log("row", row)
+    // Track if this person is ever from Maximum Fencing Club
+    if (row["Club(s)"]?.includes("Maximum Fencing Club")) {
+      maximumFencingNames.add(name);
     }
 
-    const typeMap = summaryData.get(type);
+    if (!allNamesData.has(type)) {
+      allNamesData.set(type, new Map());
+    }
+
+    const typeMap = allNamesData.get(type);
     typeMap.set(name, (typeMap.get(name) || 0) + 1);
   });
+
+  // Filter to only include names that appear in Maximum Fencing Club
+  const summaryData = new Map();
+  for (const [type, nameMap] of allNamesData) {
+    const filteredNameMap = new Map();
+    for (const [name, count] of nameMap) {
+      if (maximumFencingNames.has(name)) {
+        filteredNameMap.set(name, count);
+      }
+    }
+    if (filteredNameMap.size > 0) {
+      summaryData.set(type, filteredNameMap);
+    }
+  }
 
   // Create summary sheet
   const summaryHeaders = ["Type", "Name", "Count", "Coaching", "Travel Exp"];
