@@ -119,10 +119,29 @@ async function main(eventyName, eventType) {
     const rowCount = await rowsLocator.count();
     let tableData = [];
 
+    // 定义所有可能的列
+    const expectedHeaders = [
+      "Place",
+      "Name",
+      "Club(s)",
+      "Class.",
+      "Earned",
+      "Qualified For",
+    ];
+
+    // 创建一个映射来确定每个列的位置，不存在的列将被填充为空字符串
+    const headerIndexMap = expectedHeaders.map(header => headers.indexOf(header));
+
     for (let i = 0; i < rowCount; i++) {
       const row = rowsLocator.nth(i).locator("td");
       const rowData = await row.allInnerTexts();
-      tableData.push(rowData);
+      
+      // 根据预期的列创建新的行数据
+      const filledRowData = headerIndexMap.map(index => 
+        index === -1 ? "" : rowData[index] || ""
+      );
+      
+      tableData.push(filledRowData);
     }
 
     headers.push("Event Name", "Day", "Date", "Type", "Start Time", "End Time");
