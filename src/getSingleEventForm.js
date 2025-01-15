@@ -57,21 +57,15 @@ async function main(eventyName, eventType) {
     .count();
   // get folder(event title) name
   const tournNameEle = await page.$(".desktop.tournName");
-  const tournName = await tournNameEle.innerText();
+  let tournName = await tournNameEle.innerText();
+  if (tournName.includes("/")) {
+    tournName = tournName.replaceAll("/", "_");
+  }
 
-  const eventTableHandler = await page.locator("table");
-  // get Date
-  const allEventDateAndTime = await page.locator("h5").allInnerTexts();
   const formattedCSVPath = path.join(__dirname, "..", "formattedCSV");
   if (!fs.existsSync(formattedCSVPath)) {
     fs.mkdirSync(formattedCSVPath, { recursive: true });
   }
-  const scheduleFilePath = path.join(
-    formattedCSVPath,
-    `${tournName}_schedule.csv`
-  );
-  const headers = "Start,Event,Day,Date,Start Time, End Time\n";
-  fs.writeFileSync(scheduleFilePath, headers);
 
   // create xlsx file
   const workbook = XLSX.utils.book_new();
@@ -86,15 +80,22 @@ async function main(eventyName, eventType) {
       .locator("a")
       .getAttribute("href");
     // get startTime and endTime
-    const startTime = await eventBodyHandler.nth(i).locator("td").nth(0).innerText();
-    const fullEndTime = await eventBodyHandler.nth(i).locator("td").nth(2).innerText();
+    const startTime = await eventBodyHandler
+      .nth(i)
+      .locator("td")
+      .nth(0)
+      .innerText();
+    const fullEndTime = await eventBodyHandler
+      .nth(i)
+      .locator("td")
+      .nth(2)
+      .innerText();
     if (!fullEndTime.startsWith("Finished at")) continue;
     const endTime = fullEndTime
       .split("Finished at ")[1] // Get everything after "Finished at "
       .match(/\d{1,2}:\d{2}\s?[AP]M/)[0] // Extract time in format "2:00 PM"
       .trim();
     ("3:13 PM");
-
 
     eventPage.goto(`${TOURNAMENTS_URL}${link}`);
     await eventPage.waitForTimeout(2000);
@@ -110,7 +111,7 @@ async function main(eventyName, eventType) {
 
     const headerLocator = eventPage.locator("#resultList thead tr th");
     const headers = await headerLocator.allInnerTexts();
-    if (headers.includes("Team Name")){
+    if (headers.includes("Team Name")) {
       await eventPage.close();
       continue;
     }
@@ -132,7 +133,7 @@ async function main(eventyName, eventType) {
       formattedDate,
       weaponType,
       startTime,
-      endTime
+      endTime,
     ]);
 
     [headers, ...tableData].map((row) => row.join(",")).join("\n");
@@ -144,7 +145,7 @@ async function main(eventyName, eventType) {
     } else {
       mainSheet = workbook.Sheets["Main Data"];
       XLSX.utils.sheet_add_aoa(mainSheet, tableData, {
-        origin: -1
+        origin: -1,
       });
     }
 
@@ -193,7 +194,7 @@ async function main(eventyName, eventType) {
   // Create summary sheet
   const summaryHeaders = ["Type", "Name", "Count", "Coaching", "Travel Exp"];
   const summaryRows = [summaryHeaders];
-  
+
   // Convert summary data to rows
   for (const [type, nameMap] of summaryData) {
     for (const [name, count] of nameMap) {
@@ -202,11 +203,11 @@ async function main(eventyName, eventType) {
   }
 
   const summarySheet = XLSX.utils.aoa_to_sheet(summaryRows);
-  
+
   // Add red background to duplicate names
   const duplicateNames = new Set(
     [...summaryData.values()]
-      .flatMap(nameMap => [...nameMap.entries()])
+      .flatMap((nameMap) => [...nameMap.entries()])
       .filter(([_, count]) => count > 1)
       .map(([name]) => name)
   );
@@ -215,18 +216,18 @@ async function main(eventyName, eventType) {
   let currentType = null;
   let mergeStart = 1; // Start from row 1 (after header)
   let mergeCells = [];
-  
+
   for (let i = 1; i < summaryRows.length; i++) {
     // Handle duplicate names highlighting
     const cellRef = XLSX.utils.encode_cell({ r: i, c: 1 }); // Column B (Name)
     const name = summaryRows[i][1];
     const type = summaryRows[i][0];
-    
+
     if (duplicateNames.has(name)) {
       if (!summarySheet[cellRef].s) summarySheet[cellRef].s = {};
       summarySheet[cellRef].s.fill = {
         fgColor: { rgb: "FFFF0000" },
-        patternType: "solid"
+        patternType: "solid",
       };
     }
 
@@ -235,7 +236,7 @@ async function main(eventyName, eventType) {
       if (currentType !== null && i - mergeStart > 1) {
         mergeCells.push({
           s: { r: mergeStart, c: 0 },
-          e: { r: i - 1, c: 0 }
+          e: { r: i - 1, c: 0 },
         });
       }
       currentType = type;
@@ -247,7 +248,7 @@ async function main(eventyName, eventType) {
   if (summaryRows.length - mergeStart > 1) {
     mergeCells.push({
       s: { r: mergeStart, c: 0 },
-      e: { r: summaryRows.length - 1, c: 0 }
+      e: { r: summaryRows.length - 1, c: 0 },
     });
   }
 
@@ -255,11 +256,12 @@ async function main(eventyName, eventType) {
   summarySheet["!merges"] = mergeCells;
 
   XLSX.utils.book_append_sheet(workbook, summarySheet, "Summary");
-  
+
   const xlsxFilePath = path.join(
     formattedCSVPath,
     `${tournName}_processed_data.xlsx`
   );
+
   XLSX.writeFile(workbook, xlsxFilePath);
 
   await page.waitForTimeout(5000);
