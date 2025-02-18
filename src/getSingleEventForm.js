@@ -33,10 +33,15 @@ async function main(eventyName, eventType) {
   await page.click("#searchBut");
   await page.waitForTimeout(1000);
 
-  const noFound = await page.isVisible(".no-records-found");
-  if (noFound) {
-    browser.close();
-    throw Error("No tournaments found");
+  const noFound10Days = await page.isVisible(".no-records-found");
+  if (noFound10Days) {
+    await page.click("text=Last 30 days");
+    await page.waitForTimeout(2000);
+    const noFound30Days = await page.isVisible(".no-records-found");
+    if (noFound30Days) {
+      browser.close();
+      throw Error("No tournaments found");
+    }
   }
   await page.waitForTimeout(2000);
   // click the first search result
@@ -130,17 +135,19 @@ async function main(eventyName, eventType) {
     ];
 
     // 创建一个映射来确定每个列的位置，不存在的列将被填充为空字符串
-    const headerIndexMap = expectedHeaders.map(header => headers.indexOf(header));
+    const headerIndexMap = expectedHeaders.map((header) =>
+      headers.indexOf(header)
+    );
 
     for (let i = 0; i < rowCount; i++) {
       const row = rowsLocator.nth(i).locator("td");
       const rowData = await row.allInnerTexts();
-      
+
       // 根据预期的列创建新的行数据
-      const filledRowData = headerIndexMap.map(index => 
+      const filledRowData = headerIndexMap.map((index) =>
         index === -1 ? "" : rowData[index] || ""
       );
-      
+
       tableData.push(filledRowData);
     }
 
