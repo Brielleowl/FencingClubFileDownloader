@@ -5,20 +5,23 @@
   "main": "index.js",
   "bin": "index.js",
   "scripts": {
+    "postinstall": "playwright install chromium",
+    "login": "node login.js",
     "build": "node src/getSingleEventForm.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@playwright/test": "^1.39.0",
+    "@playwright/test": "^1.61.1",
     "express": "^4.17.1",
     "file-saver": "^2.0.5",
     "http-server": "^14.1.1",
     "https": "^1.0.0",
     "open": "^6.4.0",
     "path": "^0.12.7",
-    "playwright": "^1.39.0",
+    "playwright": "^1.61.1",
+    "playwright-core": "^1.61.1",
     "xlsx": "^0.18.5"
   }
 }

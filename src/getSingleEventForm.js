@@ -2,9 +2,13 @@ const playwright = require("playwright");
 const { selectors } = require("@playwright/test");
 const fs = require("fs");
 const path = require("path");
+const { execSync } = require("child_process");
 const XLSX = require("xlsx");
 
-const TOURNAMENTS_URL = "https://fencingtimelive.com";
+// 用带 www 的地址，和 Google 登录回调的域名保持一致，避免登录后 cookie 对不上
+const TOURNAMENTS_URL = "https://www.fencingtimelive.com";
+// 持久化浏览器目录：登录 cookie 保存在这里，登录一次即可长期复用
+const USER_DATA_DIR = path.join(__dirname, "..", ".chrome-profile");
 
 function getWeaponType(eventName) {
   if (eventName.includes("Foil")) return "Foil";
@@ -13,14 +17,89 @@ function getWeaponType(eventName) {
   return "";
 }
 
-async function main(eventyName, eventType) {
-  const browser = await playwright.chromium.launch({
-    headless: false, // setting this to true will not run the UI
-  });
+// 关掉可能还占用着本项目专属配置目录的 Chrome（比如 login.js 打开后只关了窗口、
+// 进程还在后台），否则 Playwright 会报 "profile is already in use"。
+// 只针对用了 USER_DATA_DIR 的进程，不影响你日常用的 Chrome。
+async function releaseProfileLock() {
+  try {
+    execSync(`pkill -f ${JSON.stringify(USER_DATA_DIR)}`);
+    // 给进程一点时间退出、释放锁
+    await new Promise((r) => setTimeout(r, 1500));
+  } catch (e) {
+    // 没有匹配的进程时 pkill 返回非零会抛错，忽略即可
+  }
+  // 清掉可能残留的锁文件
+  for (const lock of ["SingletonLock", "SingletonCookie", "SingletonSocket"]) {
+    try {
+      fs.rmSync(path.join(USER_DATA_DIR, lock), { force: true });
+    } catch (e) {}
+  }
+}
 
-  const context = await browser.newContext();
-  const page = await context.newPage();
+async function main(eventyName, eventType) {
+  await releaseProfileLock();
+
+  // 用真正的 Chrome（channel: chrome）+ 持久化目录启动：
+  // 1) Google 在真 Chrome 里基本不会拦截登录（自动化版 Chromium 会被拦）
+  // 2) 登录状态保存在 USER_DATA_DIR，登录一次以后长期复用
+  const launchOptions = {
+    headless: false, // setting this to true will not run the UI
+    // 降低自动化指纹，尽量避免 Google 弹「此浏览器不安全」
+    ignoreDefaultArgs: ["--enable-automation"],
+    args: ["--disable-blink-features=AutomationControlled"],
+  };
+  let context;
+  try {
+    context = await playwright.chromium.launchPersistentContext(USER_DATA_DIR, {
+      ...launchOptions,
+      channel: "chrome",
+    });
+  } catch (e) {
+    // 系统没装 Google Chrome 时，退回 Playwright 自带的 Chromium
+    console.log("未找到系统 Chrome，改用 Playwright 自带的 Chromium 启动...");
+    context = await playwright.chromium.launchPersistentContext(
+      USER_DATA_DIR,
+      launchOptions
+    );
+  }
+  const page = context.pages()[0] || (await context.newPage());
   await page.goto(TOURNAMENTS_URL);
+
+  // 检测登录墙：未登录时整个站点会跳转到 /account/login
+  if (page.url().includes("/account/login")) {
+    console.log("\n=== 需要登录 ===");
+    // 自动点击「用 Google 登录」按钮
+    const googleLogin = page.locator('a[href*="/login/auth/google"]');
+    if (await googleLogin.count()) {
+      console.log("正在自动跳转到 Google 登录...");
+      await googleLogin.first().click();
+    }
+    console.log("请在浏览器窗口里完成 Google 登录（选账号 / 输密码）。");
+    console.log("登录过一次后，以后运行会自动跳过这一步。");
+    console.log("等待登录完成，最多等待 5 分钟...\n");
+    // 等到回到 FencingTimeLive 首页（登录成功后会跳回来），且不再是登录页。
+    // 注意：只能判断「域名」，不能判断整个 URL 字符串——因为在 Google 登录页时，
+    // URL 的 redirect_uri 参数里也含有 "fencingtimelive.com"，会造成误判。
+    await page.waitForURL(
+      (url) => {
+        const u = new URL(url.toString());
+        return (
+          u.hostname.endsWith("fencingtimelive.com") &&
+          !u.pathname.includes("/account/login")
+        );
+      },
+      { timeout: 300000 }
+    );
+    console.log("登录成功，继续...\n");
+    // 登录后可能停在某个子页面，回到首页准备搜索（此时 cookie 已对上，不会再被踢回登录页）
+    if (!page.url().includes("/account/login")) {
+      await page.goto(TOURNAMENTS_URL);
+    }
+    if (page.url().includes("/account/login")) {
+      await context.close();
+      throw Error("登录未完成，请重试");
+    }
+  }
 
   await page.click("text=USA");
   await page.waitForTimeout(1000);
@@ -29,7 +108,8 @@ async function main(eventyName, eventType) {
   await page.click("text=Last 10 days");
 
   const searchBar = page.locator("#searchBox");
-  searchBar.type(eventyName);
+  // 用 fill 会先清空搜索框再输入，避免和上次残留的关键词拼接在一起
+  await searchBar.fill(eventyName);
   await page.click("#searchBut");
   await page.waitForTimeout(1000);
 
@@ -39,7 +119,7 @@ async function main(eventyName, eventType) {
     await page.waitForTimeout(2000);
     const noFound30Days = await page.isVisible(".no-records-found");
     if (noFound30Days) {
-      browser.close();
+      await context.close();
       throw Error("No tournaments found");
     }
   }
@@ -47,7 +127,7 @@ async function main(eventyName, eventType) {
   // click the first search result
   // page.click("tag=table >> tbody >> tr >> td");
   const firstRow = await page.$("table.tournTable tbody tr");
-  firstRow.click();
+  await firstRow.click();
 
   //go through all event schedule item
   await page.waitForTimeout(1000);
@@ -102,7 +182,7 @@ async function main(eventyName, eventType) {
       .trim();
     ("3:13 PM");
 
-    eventPage.goto(`${TOURNAMENTS_URL}${link}`);
+    await eventPage.goto(`${TOURNAMENTS_URL}${link}`);
     await eventPage.waitForTimeout(2000);
     const eventName = await eventPage.locator(".desktop.eventName").innerText();
     const weaponType = getWeaponType(eventName);
@@ -291,7 +371,7 @@ async function main(eventyName, eventType) {
   XLSX.writeFile(workbook, xlsxFilePath);
 
   await page.waitForTimeout(5000);
-  await browser.close();
+  await context.close();
 }
 
 module.exports = {

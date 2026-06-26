@@ -18,9 +18,10 @@ app.post('/download', async (req, res) => {
     console.log('eventName', eventName)
     try{
       await main(eventName, eventType);
+      res.status(200).send('Download Complete');
     } catch (err) {
       res.status(500).send('Dowanload Failed' + err);
-    }  
+    }
   } else {
     console.log('event name is empty', eventName)
     res.status(500).send('Tournaments Name is Empty');
