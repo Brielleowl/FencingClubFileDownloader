@@ -26,6 +26,8 @@
     <button type="button" id="downloadButton" disabled>
         Download
     </button>
+
+    <p id="status" style="color: green; white-space: pre-line;"></p>
     <script>
         let buttonId = null;
         function selectButton(selectedButtonId) {
@@ -43,11 +45,21 @@
             document.getElementById('downloadButton').disabled = false;
         }
 
-        document.getElementById('downloadButton').addEventListener('click', function () {
+        const downloadButton = document.getElementById('downloadButton');
+        const statusText = document.getElementById('status');
+
+        downloadButton.addEventListener('click', function () {
             const tournamentsName = document.getElementById('tournamentsNameInput').value;
             const tournamentsType = buttonId;
             console.log('tournamentsType', tournamentsType)
             console.log('tournamentsName', tournamentsName)
+
+            // 处理期间禁用按钮，避免重复点击（重复点击会杀掉正在登录的浏览器）
+            downloadButton.disabled = true;
+            statusText.style.color = 'green';
+            statusText.innerText =
+                '正在处理…\n如果弹出了浏览器，请在里面完成登录（如有需要），过程中不要关闭浏览器窗口。\n完成后这里会提示。';
+
             fetch('/download', {
                 method: 'POST',
                 body: JSON.stringify({ tournamentsName, tournamentsType}),
@@ -63,11 +75,18 @@
                             throw new Error(msg);
                         });
                     } else {
-                        // Handle successful response
+                        statusText.style.color = 'green';
+                        statusText.innerText = '下载完成！文件已保存到 formattedCSV 文件夹。';
                     }
                 })
                 .catch(error => {
+                    statusText.style.color = 'red';
+                    statusText.innerText = '下载失败：' + error.message;
                     alert('Download failed：' + error.message);
+                })
+                .finally(() => {
+                    // 处理结束后重新启用按钮
+                    downloadButton.disabled = false;
                 });
         });
     </script>
